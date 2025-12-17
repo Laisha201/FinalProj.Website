@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html>
+<head>
+ <title>Stick Figure Dodger</title>
+ <style>
+  body { margin: 0; overflow: hidden; background-color: #ADD8E6; font-family: sans-serif; }
+  canvas { display: block; }
+  
+  /* Navigation Styling */
+  .nav-container {
+   position: absolute;
+   top: 0;
+   right: 0;
+   padding: 10px;
+   z-index: 10; /* Keeps it above the game */
+  }
+  .nav-link {
+   text-decoration: none;
+   color: #000;
+   background: rgba(255, 255, 255, 0.7);
+   padding: 8px 15px;
+   border-radius: 5px;
+   font-weight: bold;
+  }
+  .nav-link:hover { background: white; }
+
+  #lives {
+   position: absolute;
+   top: 10px;
+   left: 10px;
+   font-size: 24px;
+   color: red;
+   background: rgba(255, 255, 255, 0.5);
+   padding: 5px 10px;
+   border-radius: 5px;
+   pointer-events: none; /* Allows clicks to pass through to game if needed */
+  }
+  
+  #gameOver {
+   position: absolute;
+   top: 50%;
+   left: 50%;
+   transform: translate(-50%, -50%);
+   font-size: 40px;
+   color: red;
+   display: none;
+   text-align: center;
+   background: rgba(255, 255, 255, 0.8);
+   padding: 20px;
+   border-radius: 10px;
+  }
+  
+  #countdown {
+   position: absolute;
+   top: 50%;
+   left: 50%;
+   transform: translate(-50%, -50%);
+   font-size: 60px;
+   color: black;
+  }
+ </style>
+</head>
+<body>
+
+ <div class="nav-container">
+  <a class="nav-link" href="scratch.html">scratch page</a>
+ </div>
+
+ <div id="lives">Lives: <span id="heartCount">❤️❤️❤️❤️❤️</span></div>
+ <div id="gameOver">GAME OVER<br><span style="font-size: 20px; color: black;">Press any key to restart</span></div>
+ <div id="countdown">5</div>
+ 
+ <canvas id="gameCanvas"></canvas>
+
+ <script>
+  const canvas = document.getElementById("gameCanvas");
+  const ctx = canvas.getContext("2d");
+  
+  function resize() {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+  }
+  window.addEventListener('resize', resize);
+  resize();
+
+  const stickFigure = {
+   x: 50, y: canvas.height / 2,
+   height: 40, width: 20, speed: 7
+  };
+
+  let buildingsTop = [];
+  let buildingsBottom = [];
+  let scrollSpeed = 5;
+  let lives = 5;
+  let gameOver = false;
+  let countdownTimer = 5;
+  let gameStarted = false;
+  let isInvulnerable = false;
+
+  const heartCountDisplay = document.getElementById("heartCount");
+  const gameOverDisplay = document.getElementById("gameOver");
+  const countdownDisplay = document.getElementById("countdown");
+
+  function initBuildings() {
+    buildingsTop = [];
+    buildingsBottom = [];
+    for(let i=0; i<6; i++) {
+        let x = 600 + (i * 400);
+        let h = Math.random() * (canvas.height / 2 - 100) + 50;
+        buildingsTop.push({ x: x, width: 120, height: h, color: "#696969" });
+        buildingsBottom.push({ x: x, width: 120, height: canvas.height - h - 180, color: "#808080" });
+    }
+  }
+
+  function drawStickFigure() {
+   ctx.fillStyle = isInvulnerable ? "rgba(0,0,0,0.3)" : "black";
+   ctx.fillRect(stickFigure.x, stickFigure.y, stickFigure.width, stickFigure.height);
+  }
+
+  function drawBuildings() {
+   buildingsTop.forEach(b => { ctx.fillStyle = b.color; ctx.fillRect(b.x, 0, b.width, b.height); });
+   buildingsBottom.forEach(b => { ctx.fillStyle = b.color; ctx.fillRect(b.x, canvas.height - b.height, b.width, b.height); });
+  }
+
+  function updateBuildings() {
+   if (!gameStarted || gameOver) return;
+   
+   buildingsTop.concat(buildingsBottom).forEach(b => b.x -= scrollSpeed);
+
+   if (buildingsTop[0].x + buildingsTop[0].width < 0) {
+    buildingsTop.shift();
+    buildingsBottom.shift();
+    let lastX = buildingsTop[buildingsTop.length-1].x;
+    let h = Math.random() * (canvas.height / 2 - 100) + 50;
+    buildingsTop.push({ x: lastX + 400, width: 120, height: h, color: "#696969" });
+    buildingsBottom.push({ x: lastX + 400, width: 120, height: canvas.height - h - 180, color: "#808080" });
+   }
+  }
+
+  function checkCollision() {
+   if (isInvulnerable || gameOver) return false;
+   let hit = false;
+   
+   // Check boundaries
+   if (stickFigure.y < 0 || stickFigure.y + stickFigure.height > canvas.height) hit = true;
+
+   buildingsTop.forEach(b => {
+    if (stickFigure.x < b.x + b.width && stickFigure.x + stickFigure.width > b.x && stickFigure.y < b.height) hit = true;
+   });
+   buildingsBottom.forEach(b => {
+    if (stickFigure.x < b.x + b.width && stickFigure.x + stickFigure.width > b.x && stickFigure.y + stickFigure.height > canvas.height - b.height) hit = true;
+   });
+   return hit;
+  }
+
+  function loseLife() {
+   lives--;
+   heartCountDisplay.textContent = "❤️".repeat(Math.max(0, lives));
+   if (lives <= 0) {
+    gameOver = true;
+    gameOverDisplay.style.display = "block";
+   } else {
+    isInvulnerable = true;
+    setTimeout(() => { isInvulnerable = false; }, 1000);
+   }
+  }
+
+  function resetGame() {
+   lives = 5;
+   heartCountDisplay.textContent = "❤️".repeat(lives);
+   gameOver = false;
+   gameOverDisplay.style.display = "none";
+   stickFigure.x = 50;
+   stickFigure.y = canvas.height / 2;
+   initBuildings();
+   gameStarted = false;
+   countdownTimer = 5;
+   countdownDisplay.style.display = "block";
+   countdownDisplay.textContent = countdownTimer;
+  }
+
+  const keys = {};
+  window.onkeydown = (e) => { 
+    keys[e.key] = true; 
+    if(gameOver) resetGame();
+  };
+  window.onkeyup = (e) => { keys[e.key] = false; };
+
+  const timerInterval = setInterval(() => {
+   if (!gameStarted && countdownTimer > 0) {
+    countdownTimer--;
+    countdownDisplay.textContent = countdownTimer;
+    if (countdownTimer <= 0) {
+     countdownDisplay.style.display = "none";
+     gameStarted = true;
+    }
+   }
+  }, 1000);
+
+  function gameLoop() {
+   ctx.clearRect(0, 0, canvas.width, canvas.height);
+   
+   if (gameStarted && !gameOver) {
+    if (keys["ArrowUp"]) stickFigure.y -= stickFigure.speed;
+    if (keys["ArrowDown"]) stickFigure.y += stickFigure.speed;
+    if (keys["ArrowLeft"]) stickFigure.x -= stickFigure.speed;
+    if (keys["ArrowRight"]) stickFigure.x += stickFigure.speed;
+    
+    updateBuildings();
+    if (checkCollision()) loseLife();
+   }
+
+   drawBuildings();
+   drawStickFigure();
+   requestAnimationFrame(gameLoop);
+  }
+
+  initBuildings();
+  gameLoop();
+ </script>
+</body>
+</html>
